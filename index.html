@@ -4,7 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0b0c0e">
-<title>Open Refocus</title>
+<meta name="apple-mobile-web-app-title" content="Refocus">
+<title>Refocus</title>
 <style>
   :root {
     --bg: #0b0c0e;
@@ -25,20 +26,23 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 28px;
+    gap: 26px;
     padding: 32px 24px calc(32px + env(safe-area-inset-bottom));
     text-align: center;
   }
   .mark {
     width: 64px; height: 64px;
     border-radius: 18px;
-    background: linear-gradient(160deg, #3a6bff, #7a4dff);
+    background: linear-gradient(160deg, #3455ef, #7a4dff);
     display: grid; place-items: center;
     font-size: 30px;
-    box-shadow: 0 12px 30px rgba(90,120,255,.25);
+    box-shadow: 0 12px 30px rgba(90,120,255,.22);
+    animation: breathe 2.4s ease-in-out infinite;
   }
-  h1 { font-size: 26px; line-height: 1.2; margin: 0; letter-spacing: -0.02em; }
+  @keyframes breathe { 0%,100% { transform: scale(1); opacity: .95 } 50% { transform: scale(1.06); opacity: 1 } }
+  h1 { font-size: 24px; line-height: 1.2; margin: 0 0 6px; letter-spacing: -0.02em; }
   p.sub { margin: 0; color: var(--muted); font-size: 15px; max-width: 30ch; }
+  #stage { display: flex; flex-direction: column; align-items: center; gap: 26px; width: 100%; }
   a.open {
     display: block;
     width: 100%;
@@ -55,12 +59,35 @@
     transition: transform .12s ease, opacity .12s ease;
   }
   a.open:active { transform: scale(.975); opacity: .9; }
+  .waiting {
+    width: 100%;
+    max-width: 340px;
+    padding: 18px 24px;
+    border-radius: 16px;
+    border: 1px solid var(--line);
+    background: var(--card);
+    color: var(--muted);
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+  }
+  .spinner {
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    border: 2px solid rgba(255,255,255,.18);
+    border-top-color: var(--accent);
+    animation: spin .7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg) } }
   .fallback {
     width: 100%; max-width: 340px;
     border-top: 1px solid var(--line);
     padding-top: 20px;
     color: var(--muted);
     font-size: 14px;
+    display: none;
   }
   .fallback a { color: var(--accent); text-decoration: none; }
   code {
@@ -72,34 +99,67 @@
     font-size: 13px;
     color: var(--fg);
   }
+  body.failed .fallback { display: block; }
+  body.failed .waiting { display: none; }
+  body.failed .mark { animation: none; }
 </style>
 </head>
 <body>
   <div class="mark">◎</div>
 
   <div>
-    <h1>Open Refocus</h1>
-    <p class="sub">Launches the Refocus app blocker straight from this link.</p>
+    <h1 id="headline">Opening Refocus…</h1>
+    <p class="sub" id="sub">Handing off to the app, no tap needed.</p>
   </div>
 
-  <!-- Real link tap: iOS hands custom schemes to the app natively -->
-  <a class="open" href="refocus://" id="openBtn">Open Refocus</a>
-
-  <div class="fallback">
-    Nothing happened? The app isn't installed, or you're in an in-app browser
-    (Instagram, Gmail, etc.) that blocks app links — tap
-    <strong>Open in Safari</strong> first, or
-    <a href="https://apps.apple.com/app/id1645639057">get Refocus on the App Store</a>.
-    <br><br>
-    Raw URL: <code>refocus://</code>
+  <div id="stage">
+    <div class="waiting" id="waiting"><span class="spinner"></span> Launching…</div>
+    <a class="open" href="refocus://" id="openBtn" hidden>Open Refocus</a>
+    <div class="fallback">
+      iOS refused the automatic hand-off (Safari only follows app links after a tap),
+      or the app isn't installed. Tap the button above — and if you're inside an
+      in-app browser (Instagram, Gmail, Facebook), choose <strong>Open in Safari</strong> first.
+      <br><br>
+      Raw URL: <code>refocus://</code> ·
+      <a href="https://apps.apple.com/app/id1645639057">App Store</a>
+    </div>
   </div>
 
 <script>
-  // Second attempt path: if the anchor tap is swallowed, force navigation on click.
-  document.getElementById('openBtn').addEventListener('click', function (e) {
+(function () {
+  var btn = document.getElementById('openBtn');
+  var body = document.body;
+  var headline = document.getElementById('headline');
+  var sub = document.getElementById('sub');
+  var noAuto = /(\?|&)noauto=1/.test(location.search);
+  var isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+  function fail() {
+    body.classList.add('failed');
+    headline.textContent = 'Open Refocus';
+    sub.textContent = 'One tap launches the app.';
+    btn.hidden = false;
+  }
+
+  function attempt() {
+    if (noAuto || !isMobile) return fail();
+    try { window.location.href = 'refocus://'; } catch (e) {}
+    // If the app launched, this page is backgrounded; if it's still visible
+    // after the grace period, the scheme was refused.
+    setTimeout(function () {
+      if (document.visibilityState === 'visible') fail();
+    }, 1400);
+  }
+
+  // A real link tap is the most reliable path iOS gives us (kept as the fallback).
+  btn.addEventListener('click', function (e) {
     e.preventDefault();
     window.location.href = 'refocus://';
   });
+
+  if (document.readyState === 'complete') attempt();
+  else window.addEventListener('load', attempt);
+})();
 </script>
 </body>
 </html>
